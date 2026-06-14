@@ -8,106 +8,140 @@ load_dotenv()
 app = Flask(__name__)
 
 
+# ---------------- DB CONNECTION ----------------
 def get_db_connection():
-    conn = psycopg2.connect(
+    return psycopg2.connect(
         host=os.getenv("DB_HOST"),
         database=os.getenv("DB_NAME"),
         user=os.getenv("DB_USER"),
         password=os.getenv("DB_PASSWORD"),
         port=os.getenv("DB_PORT")
     )
-    return conn
 
 
+# ---------------- HEALTH ----------------
 @app.route("/health")
 def health():
-    return jsonify({
-        "status": "UP"
-    })
+    return jsonify({"status": "UP"})
 
 
-@app.route("/db-check")
-def db_check():
-    try:
-        conn = get_db_connection()
-        conn.close()
-
-        return jsonify({
-            "database": "connected"
-        })
-
-    except Exception as e:
-        return jsonify({
-            "database": "failed",
-            "error": str(e)
-        }), 500
-
-
+# ---------------- GET ALL EMPLOYEES ----------------
 @app.route("/employees", methods=["GET"])
 def get_employees():
-
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cur = conn.cursor()
 
-    cursor.execute(
-        "SELECT id, name, department, salary, created_at FROM employees"
-    )
+    cur.execute("SELECT * FROM employees ORDER BY id")
+    rows = cur.fetchall()
 
-    rows = cursor.fetchall()
-
-    employees = []
-
-    for row in rows:
-        employees.append({
-            "id": row[0],
-            "name": row[1],
-            "department": row[2],
-            "salary": row[3],
-            "created_at": str(row[4])
-        })
-
-    cursor.close()
+    cur.close()
     conn.close()
 
-    return jsonify(employees)
+    return jsonify([
+        {
+            "id": r[0],
+            "name": r[1],
+            "department": r[2],
+            "salary": r[3],
+            "created_at": str(r[4])
+        }
+        for r in rows
+    ])
 
+# ---------------- SEARCH API   ----------------
+@app.route("/employees/search", methods=["GET"])
+def search_employees():
+    query = request.args.get("q", "").strip()
 
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT id, name, department, salary, created_at
+        FROM employees
+        WHERE name ILIKE %s
+           OR department ILIKE %s
+        ORDER BY id
+    """, (f"%{query}%", f"%{query}%"))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify([
+        {
+            "id": r[0],
+            "name": r[1],
+            "department": r[2],
+            "salary": r[3],
+            "created_at": str(r[4])
+        }
+        for r in rows
+    ])
+
+# ---------------- ADD EMPLOYEE ----------------
 @app.route("/employees", methods=["POST"])
-def create_employee():
-
+def add_employee():
     data = request.json
 
-    name = data["name"]
-    department = data["department"]
-    salary = data["salary"]
-
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cur = conn.cursor()
 
-    cursor.execute(
-        """
-        INSERT INTO employees
-        (name, department, salary)
-        VALUES (%s,%s,%s)
-        """,
-        (name, department, salary)
+    cur.execute(
+        "INSERT INTO employees (name, department, salary) VALUES (%s, %s, %s) RETURNING id",
+        (data["name"], data["department"], data["salary"])
     )
 
-    conn.commit()
+    emp_id = cur.fetchone()[0]
 
-    cursor.close()
+    conn.commit()
+    cur.close()
     conn.close()
 
-    return jsonify({
-        "message": "Employee created"
-    }), 201
+    return jsonify({"message": "Employee added", "id": emp_id})
 
+# ---------------- UPDATE EMPLOYEE ----------------
+@app.route("/employees/<int:emp_id>", methods=["PUT"])
+def update_employee(emp_id):
+    data = request.json
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE employees
+        SET name = %s,
+            department = %s,
+            salary = %s
+        WHERE id = %s
+    """, (
+        data["name"],
+        data["department"],
+        data["salary"],
+        emp_id
+    ))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({"message": "Employee updated"})
+
+# ---------------- DELETE EMPLOYEE ----------------
+@app.route("/employees/<int:emp_id>", methods=["DELETE"])
+def delete_employee(emp_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("DELETE FROM employees WHERE id = %s", (emp_id,))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({"message": "Employee deleted"})
 
 
 if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=5000
-    )
-
-
+    app.run(host="0.0.0.0", port=5000)

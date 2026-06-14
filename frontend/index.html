@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<meta charset="UTF-8">
+<title>Employee Dashboard Pro</title>
+
+<style>
+
+/* ---------------- DARK MODE ---------------- */
+body.dark {
+    background: #1e1e1e;
+    color: white;
+}
+
+body {
+    font-family: Arial;
+    margin: 0;
+    background: #f4f6f9;
+    transition: 0.3s;
+}
+
+/* HEADER */
+.header {
+    background: #2c3e50;
+    color: white;
+    padding: 20px;
+    text-align: center;
+}
+
+/* FORM */
+.form-container {
+    background: white;
+    margin: 20px auto;
+    padding: 20px;
+    width: 60%;
+    border-radius: 10px;
+    box-shadow: 0px 2px 10px rgba(0,0,0,0.1);
+}
+
+body.dark .form-container {
+    background: #2a2a2a;
+}
+
+/* INPUT */
+input {
+    padding: 10px;
+    margin: 5px;
+    width: 25%;
+}
+
+/* BUTTON */
+button {
+    padding: 10px;
+    border: none;
+    cursor: pointer;
+}
+
+.add-btn { background: #27ae60; color: white; }
+.edit-btn { background: #f39c12; color: white; }
+.delete-btn { background: #e74c3c; color: white; }
+
+/* TABLE */
+.table-container {
+    width: 80%;
+    margin: auto;
+}
+
+table {
+    width: 100%;
+    background: white;
+    border-collapse: collapse;
+}
+
+body.dark table {
+    background: #2a2a2a;
+}
+
+th {
+    background: #34495e;
+    color: white;
+    padding: 10px;
+}
+
+td {
+    padding: 10px;
+    text-align: center;
+}
+
+/* SEARCH */
+.search {
+    width: 60%;
+    margin: 10px auto;
+    display: block;
+    padding: 10px;
+}
+
+/* TOAST */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #27ae60;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    display: none;
+}
+
+/* SPINNER */
+.spinner {
+    display: none;
+    text-align: center;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="header">
+Employee Dashboard Pro
+
+<button onclick="toggleDarkMode()" style="float:right">
+Dark Mode
+</button>
+
+</div>
+
+<!-- SEARCH -->
+<div style="text-align:center; margin:10px;">
+    <input id="searchBox" placeholder="Search by name or department">
+    <button onclick="searchEmployees()">Search</button>
+    <button onclick="loadEmployees()">Reset</button>
+</div>
+
+
+<!-- FORM -->
+<div class="form-container">
+
+<h3>Add / Edit Employee</h3>
+
+<input id="id" placeholder="ID (for edit)">
+<input id="name" placeholder="Name">
+<input id="department" placeholder="Department">
+<input id="salary" placeholder="Salary">
+
+<button class="add-btn" onclick="addEmployee()">Add</button>
+<button class="edit-btn" onclick="updateEmployee()">Update</button>
+
+</div>
+
+<!-- SPINNER -->
+<div class="spinner" id="spinner">Loading...</div>
+
+<!-- TABLE -->
+<div class="table-container">
+
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Name</th>
+<th>Department</th>
+<th>Salary</th>
+<th>Action</th>
+</tr>
+</thead>
+
+<tbody id="table"></tbody>
+
+</table>
+
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+
+async function searchEmployees() {
+
+    const q = document.getElementById("searchBox").value;
+
+    showSpinner(true);
+
+    const res = await fetch(`/api/employees/search?q=${q}`);
+    const data = await res.json();
+
+    let html = "";
+
+    data.forEach(emp => {
+        html += `
+        <tr>
+            <td>${emp.id}</td>
+            <td>${emp.name}</td>
+            <td>${emp.department}</td>
+            <td>${emp.salary}</td>
+            <td>
+                <button class="delete-btn" onclick="deleteEmp(${emp.id})">
+                    Delete
+                </button>
+            </td>
+        </tr>
+        `;
+    });
+
+    document.getElementById("table").innerHTML = html;
+
+    showSpinner(false);
+}
+
+function showToast(msg) {
+    let t = document.getElementById("toast");
+    t.innerText = msg;
+    t.style.display = "block";
+    setTimeout(() => t.style.display = "none", 2000);
+}
+
+function showSpinner(show) {
+    document.getElementById("spinner").style.display =
+        show ? "block" : "none";
+}
+
+async function loadEmployees() {
+
+showSpinner(true);
+
+const res = await fetch("/employees");
+const data = await res.json();
+
+let html = "";
+
+data.forEach(emp => {
+html += `
+<tr>
+<td>${emp.id}</td>
+<td>${emp.name}</td>
+<td>${emp.department}</td>
+<td>${emp.salary}</td>
+<td>
+<button class="delete-btn" onclick="deleteEmp(${emp.id})">Delete</button>
+</td>
+</tr>
+`;
+});
+
+document.getElementById("table").innerHTML = html;
+
+showSpinner(false);
+}
+
+async function addEmployee() {
+
+    const name = document.getElementById("name").value;
+    const department = document.getElementById("department").value;
+    const salary = document.getElementById("salary").value;
+
+    if (!name || !department || !salary) {
+        alert("Please fill all fields");
+        return;
+    }
+
+    const payload = {
+        name: name,
+        department: department,
+        salary: Number(salary)
+    };
+
+    console.log("POST payload:", payload);
+
+    const res = await fetch("/api/employees", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+    });
+
+    const text = await res.text();
+    console.log("Response:", text);
+
+    showToast("Employee Added!");
+    loadEmployees();
+}
+
+async function updateEmployee() {
+
+const idVal = id.value;
+
+const data = {
+name: name.value,
+department: department.value,
+salary: salary.value
+};
+
+await fetch(`/api/employees/${idVal}`, {
+method: "PUT",
+headers: {"Content-Type": "application/json"},
+body: JSON.stringify(data)
+});
+
+showToast("Employee Updated!");
+loadEmployees();
+}
+
+async function deleteEmp(id) {
+
+await fetch(`/api/employees/${id}`, {
+method: "DELETE"
+});
+
+showToast("Employee Deleted!");
+loadEmployees();
+}
+
+function filterTable() {
+let input = document.getElementById("search").value.toLowerCase();
+let rows = document.querySelectorAll("#table tr");
+
+rows.forEach(row => {
+row.style.display =
+row.innerText.toLowerCase().includes(input)
+? ""
+: "none";
+});
+}
+
+function toggleDarkMode() {
+document.body.classList.toggle("dark");
+}
+
+loadEmployees();
+
+</script>
+
+</body>
+</html>
