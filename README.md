@@ -8,6 +8,10 @@ A production-style **3-tier Dockerized application** built using:
 - Containerization: Docker + Docker Compose
 
 
+## 📸 Application Screenshot
+
+![Application](screenshots/app.png)
+
 ## 🏗️ Architecture
 
 ![Architecture](architecture.png)
